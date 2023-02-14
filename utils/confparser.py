@@ -113,11 +113,11 @@ class DataParser:
 	def build_train(self,all_params):
 		
 		train_dataset=ImageDataset(self.globalvars,'train')
-		train_dataset2=ImageDataset(self.globalvars,'train')
+		#train_dataset2=ImageDataset(self.globalvars,'train')
 		train_dataloader=torch.utils.data.DataLoader(train_dataset, batch_size=int(self.globalvars['batch_size']), shuffle=True, num_workers=1)
 
 		val_dataset=ImageDataset(self.globalvars,'val')
-		val_dataloader=torch.utils.data.DataLoader(val_dataset, batch_size=int(self.globalvars['batch_size']), shuffle=False, num_workers=8)
+		val_dataloader=torch.utils.data.DataLoader(val_dataset, batch_size=int(self.globalvars['batch_size']), shuffle=False, num_workers=1)
 		
 
 		lr_steps=[int(k) for k in ast.literal_eval(self.experiment_data['lr_steps'])]
@@ -132,7 +132,7 @@ class DataParser:
 		'scheduler':scheduler,
 		'criterion':criterion,
 		'train_dataset':train_dataset,
-		'train_dataset2':train_dataset2,
+		#'train_dataset2':train_dataset2,
 		'train_dataloader':train_dataloader,
 		'val_dataset':val_dataset,
 		'val_dataloader':val_dataloader,

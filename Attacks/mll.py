@@ -665,127 +665,245 @@ class OrthMLLAttacks:
 
 		return final_pert 
 
-	def UMLLperturb(self,model,inputs,newlabels,mytargetlabels,nontargetlabels, eps_val,norm,step_size,criterion,out_iterations,in_iterations):
+	# def UMLLperturb(self,model,inputs,newlabels,mytargetlabels,nontargetlabels, eps_val,norm,step_size,criterion,out_iterations,in_iterations):
 			
 
-		#50, 130, 250, 
-		#chkpt_percent=[0.2,0.3,0.4,0.6]
+	# 	#50, 130, 250, 
+	# 	#chkpt_percent=[0.2,0.3,0.4,0.6]
 
-		#self.step_size=(eps_val/out_iterations)*torch.ones(size=(inputs.shape[0],),dtype=torch.float32).cuda()
-		self.step_size=step_size*torch.ones(size=(inputs.shape[0],)).cuda()
-		#eps_val=eps_val*torch.ones(size=(inputs.shape[0],)).cuda()
-		#t = 2 * torch.rand(inputs.shape).cuda().detach() - 1
-		#inputs = inputs + eps_val * torch.ones_like(inputs).detach() * self.normalize(t)
+	# 	#self.step_size=(eps_val/out_iterations)*torch.ones(size=(inputs.shape[0],),dtype=torch.float32).cuda()
+	# 	self.step_size=step_size*torch.ones(size=(inputs.shape[0],)).cuda()
+	# 	#eps_val=eps_val*torch.ones(size=(inputs.shape[0],)).cuda()
+	# 	#t = 2 * torch.rand(inputs.shape).cuda().detach() - 1
+	# 	#inputs = inputs + eps_val * torch.ones_like(inputs).detach() * self.normalize(t)
 
 
-		for it in tqdm(range(out_iterations)):
-			# if it in self.checkpoints:
-			# 	indices=self.check_decr(iterations_loss,it)
+	# 	for it in tqdm(range(out_iterations)):
+	# 		# if it in self.checkpoints:
+	# 		# 	indices=self.check_decr(iterations_loss,it)
 				
-			# 	if ((it+1)%(self.osc_past_iterations+2)==0):
-			# 		indices=np.logical_or(indices,self.check_oscillation(iterations_loss,it))
+	# 		# 	if ((it+1)%(self.osc_past_iterations+2)==0):
+	# 		# 		indices=np.logical_or(indices,self.check_oscillation(iterations_loss,it))
 
-			# 	final_pert[indices]=self.best_global_pert[indices].detach()
+	# 		# 	final_pert[indices]=self.best_global_pert[indices].detach()
 
-				#print('Step sizes:',self.step_size)
+	# 			#print('Step sizes:',self.step_size)
 
-			model.zero_grad()
-			#newinputs=torch.clone(inputs)+local_pert.view(inputs.shape[0],3,224,224)+global_pert.view(inputs.shape[0],3,224,224)
-			newinputs=torch.clone(inputs)
-			#newinputs=torch.clone(inputs)+global_pert.view(inputs.shape[0],3,224,224)
-			newinputs.requires_grad=True
+	# 		model.zero_grad()
+	# 		#newinputs=torch.clone(inputs)+local_pert.view(inputs.shape[0],3,224,224)+global_pert.view(inputs.shape[0],3,224,224)
+	# 		newinputs=torch.clone(inputs)
+	# 		#newinputs=torch.clone(inputs)+global_pert.view(inputs.shape[0],3,224,224)
+	# 		newinputs.requires_grad=True
 
-			outputs,_ = model(newinputs,{'epsilon_norm':0.0})
-			prev=torch.clone(outputs)
-			koutputs=torch.where(outputs>0,1,0).float()
+	# 		outputs,_ = model(newinputs,{'epsilon_norm':0.0})
+	# 		prev=torch.clone(outputs)
+	# 		koutputs=torch.where(outputs>0,1,0).float()
 			
-			lossval = criterion(outputs, newlabels.type(torch.cuda.FloatTensor))
+	# 		lossval = criterion(outputs, newlabels.type(torch.cuda.FloatTensor))
 		
-			nontargetgrads=[]
-			for idx_ts,ts in enumerate(nontargetlabels):
-				#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=(True,False)[idx_ts==len(nontargetlabels+mytargetlabels)-1])[0].view(newinputs.shape[0],3*224*224)
-				gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=True)[0].view(newinputs.shape[0],3*224*224)
-				nontargetgrads.append(gradval.view(gradval.shape[0],-1,1))
+	# 		nontargetgrads=[]
+	# 		for idx_ts,ts in enumerate(nontargetlabels):
+	# 			#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=(True,False)[idx_ts==len(nontargetlabels+mytargetlabels)-1])[0].view(newinputs.shape[0],3*224*224)
+	# 			gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=True)[0].view(newinputs.shape[0],3*224*224)
+	# 			nontargetgrads.append(gradval.view(gradval.shape[0],-1,1))
 			
-			nontargetgrads=torch.cat(nontargetgrads,-1)
-			#nontargetgrads=nontargetgrads.reshape(-1,150528).T
-			nontargetgrads=torch.qr(nontargetgrads)[0]
+	# 		nontargetgrads=torch.cat(nontargetgrads,-1)
+	# 		#nontargetgrads=nontargetgrads.reshape(-1,150528).T
+	# 		nontargetgrads=torch.qr(nontargetgrads)[0]
 
 			
-			# print(nontargetgrads.shape)
-			# 0/0
-			##############################
-			mytargetgrads=[]
-			for idx_ts,ts in enumerate(mytargetlabels):
+	# 		# print(nontargetgrads.shape)
+	# 		# 0/0
+	# 		##############################
+	# 		mytargetgrads=[]
+	# 		for idx_ts,ts in enumerate(mytargetlabels):
 
-				gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=(True,False)[idx_ts==len(mytargetlabels)-1])[0].view(newinputs.shape[0],3*224*224)
-				#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=True)[0].view(newinputs.shape[0],3*224*224)
-				mytargetgrads.append(gradval.view(gradval.shape[0],-1,1))
+	# 			gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=(True,False)[idx_ts==len(mytargetlabels)-1])[0].view(newinputs.shape[0],3*224*224)
+	# 			#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=True)[0].view(newinputs.shape[0],3*224*224)
+	# 			mytargetgrads.append(gradval.view(gradval.shape[0],-1,1))
 
 
-			mytargetgrads=torch.cat(mytargetgrads,-1)
+	# 		mytargetgrads=torch.cat(mytargetgrads,-1)
 
-			mytargetgrads=torch.sum(mytargetgrads,-1).view(mytargetgrads.shape[0],-1,1)
-			#print(mytargetgrads.shape)
-			#print(nontargetgrads.shape)
-			#mytargetgrads=(torch.sign(mytargetgrads).squeeze()*self.step_size[:,None]).unsqueeze(-1)
+	# 		mytargetgrads=torch.sum(mytargetgrads,-1).view(mytargetgrads.shape[0],-1,1)
+	# 		#print(mytargetgrads.shape)
+	# 		#print(nontargetgrads.shape)
+	# 		#mytargetgrads=(torch.sign(mytargetgrads).squeeze()*self.step_size[:,None]).unsqueeze(-1)
 
-			# A = QR -> Take Q as the orthonormal basis that span the columns of nontargetgrads
-			#80 x 19 x x 80 x x
+	# 		# A = QR -> Take Q as the orthonormal basis that span the columns of nontargetgrads
+	# 		#80 x 19 x x 80 x x
 			
-			#mytargetgrads=torch.sum(mytargetgrads,dim=0)
+	# 		#mytargetgrads=torch.sum(mytargetgrads,dim=0)
 			
-			#proj_target_grads=mytargetgrads-torch.matmul(nontargetgrads,torch.matmul(torch.transpose(nontargetgrads,0,1),mytargetgrads))
-			proj_target_grads=mytargetgrads-torch.bmm(nontargetgrads,torch.bmm(torch.transpose(nontargetgrads,1,2),mytargetgrads))
-			#proj_target_grads=mytargetgrads-torch.matmul(nontargetgrads,torch.matmul(torch.transpose(nontargetgrads,0,1),mytargetgrads))
-			proj_target_grads=proj_target_grads.squeeze()
+	# 		#proj_target_grads=mytargetgrads-torch.matmul(nontargetgrads,torch.matmul(torch.transpose(nontargetgrads,0,1),mytargetgrads))
+	# 		proj_target_grads=mytargetgrads-torch.bmm(nontargetgrads,torch.bmm(torch.transpose(nontargetgrads,1,2),mytargetgrads))
+	# 		#proj_target_grads=mytargetgrads-torch.matmul(nontargetgrads,torch.matmul(torch.transpose(nontargetgrads,0,1),mytargetgrads))
+	# 		proj_target_grads=proj_target_grads.squeeze()
 			
 			
-			proj_target_grads=torch.sum(proj_target_grads,dim=0)
+	# 		proj_target_grads=torch.sum(proj_target_grads,dim=0)
 
-			return proj_target_grads, nontargetgrads
+	# 		return proj_target_grads, nontargetgrads
 			
-			#local_pert=torch.clone(proj_target_grads.squeeze()).detach()
-			#proj_target_grads=proj_target_grads/torch.linalg.vector_norm(proj_target_grads,dim=1)[:,None]
+	# 		#local_pert=torch.clone(proj_target_grads.squeeze()).detach()
+	# 		#proj_target_grads=proj_target_grads/torch.linalg.vector_norm(proj_target_grads,dim=1)[:,None]
 
-			with torch.no_grad():
-				#local_pert=torch.sign(proj_target_grads)*self.step_size[:,None]
-				#local_pert=torch.sign(proj_target_grads)*self.step_size[:,None]
+	# 		with torch.no_grad():
+	# 			#local_pert=torch.sign(proj_target_grads)*self.step_size[:,None]
+	# 			#local_pert=torch.sign(proj_target_grads)*self.step_size[:,None]
 				
 
-				local_pert=normalize_vec(proj_target_grads,max_norm=self.step_size,norm_p=norm).squeeze()
+	# 			local_pert=normalize_vec(proj_target_grads,max_norm=self.step_size,norm_p=norm).squeeze()
 
-				# # The problem is that this vector might not lie in the same subspace as the original spanned by the non-target complement
-				# final_pert=self.clip(final_pert+local_pert,norm,eps_val)
+	# 			# # The problem is that this vector might not lie in the same subspace as the original spanned by the non-target complement
+	# 			# final_pert=self.clip(final_pert+local_pert,norm,eps_val)
 
-				# tempnorm=torch.linalg.vector_norm(proj_target_grads,ord=float('inf'),dim=1)
-				# local_pert=proj_target_grads/tempnorm[:,None]#.squeeze()
-				# local_pert=local_pert*self.step_size[:,None]
-				# print(torch.linalg.vector_norm(local_pert,ord=float('inf'),dim=1))
-				# The problem is that this vector might not lie in the same subspace as the original spanned by the non-target complement
-				#final_pert=self.clip(final_pert+local_pert,norm,eps_val)
+	# 			# tempnorm=torch.linalg.vector_norm(proj_target_grads,ord=float('inf'),dim=1)
+	# 			# local_pert=proj_target_grads/tempnorm[:,None]#.squeeze()
+	# 			# local_pert=local_pert*self.step_size[:,None]
+	# 			# print(torch.linalg.vector_norm(local_pert,ord=float('inf'),dim=1))
+	# 			# The problem is that this vector might not lie in the same subspace as the original spanned by the non-target complement
+	# 			#final_pert=self.clip(final_pert+local_pert,norm,eps_val)
 				
-				#final_pert=final_pert+local_pert
-				#tempnorm=torch.linalg.vector_norm(final_pert,ord=float('inf'),dim=1)
-				#final_pert=final_pert/tempnorm[:,None]#.squeeze()
-				#final_pert=final_pert*(torch.ones_like(tempnorm)*eps_val)[:,None]
-				#final_pert=self.clip(final_pert+local_pert,norm,eps_val)
+	# 			#final_pert=final_pert+local_pert
+	# 			#tempnorm=torch.linalg.vector_norm(final_pert,ord=float('inf'),dim=1)
+	# 			#final_pert=final_pert/tempnorm[:,None]#.squeeze()
+	# 			#final_pert=final_pert*(torch.ones_like(tempnorm)*eps_val)[:,None]
+	# 			#final_pert=self.clip(final_pert+local_pert,norm,eps_val)
 
-				final_pert=normalize_vec(final_pert+local_pert,max_norm=torch.ones_like(self.step_size)*eps_val,norm_p=norm).squeeze()
+	# 			final_pert=normalize_vec(final_pert+local_pert,max_norm=torch.ones_like(self.step_size)*eps_val,norm_p=norm).squeeze()
 
 			
 
-			for s in range(final_pert.shape[0]):
-				temp_loss=torch.sum(lossval[s,mytargetlabels])
-				if scores[s]>self.best_global_score[s] or (self.best_global_score[s]==scores[s] and temp_loss<self.best_global_loss[s]):
-					#print('This is better at loss:',best_local_score[s])
-					self.best_global_score[s]=scores[s]
-					self.best_global_ac_score[s]=ac_scores[s]
-					self.best_global_pert[s]=torch.clone(final_pert[s]).detach()
-					self.best_global_loss[s]=torch.clone(temp_loss).detach()
-					#best_global_pert[s]=torch.clone(global_pert[s]+local_pert[s]).detach()
+	# 		for s in range(final_pert.shape[0]):
+	# 			temp_loss=torch.sum(lossval[s,mytargetlabels])
+	# 			if scores[s]>self.best_global_score[s] or (self.best_global_score[s]==scores[s] and temp_loss<self.best_global_loss[s]):
+	# 				#print('This is better at loss:',best_local_score[s])
+	# 				self.best_global_score[s]=scores[s]
+	# 				self.best_global_ac_score[s]=ac_scores[s]
+	# 				self.best_global_pert[s]=torch.clone(final_pert[s]).detach()
+	# 				self.best_global_loss[s]=torch.clone(temp_loss).detach()
+	# 				#best_global_pert[s]=torch.clone(global_pert[s]+local_pert[s]).detach()
 
-		return final_pert 
+	# 	return final_pert 
+	# def UMLLperturb(self,model,inputs,newlabels,mytargetlabels,nontargetlabels, criterion,model_params):
+			
+
+		
+
+	# 	model.zero_grad()
+	# 	inputs.requires_grad=True
+
+	# 	outputs,_ = model(inputs,model_params)
+	# 	criterion=torch.nn.BCEWithLogitsLoss(weight=None, size_average=None, reduce=None, reduction='none')
+	# 	lossval = criterion(outputs, newlabels.type(torch.cuda.FloatTensor))
+	# 	losses_dict={'bceloss':lossval.sum()}
+	# 	nontargetgrads=[]
+	# 	#for idx_ts,ts in enumerate(nontargetlabels):
+	# 	for idx_ts,ts in enumerate(nontargetlabels):
+	# 		#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=(True,False)[idx_ts==len(nontargetlabels+mytargetlabels)-1])[0].view(newinputs.shape[0],3*224*224)
+	# 		#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=inputs,retain_graph=True)[0].view(inputs.shape[0],3*224*224)
+	# 		gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=model.U,retain_graph=True)[0][:,ts,:]#.view(inputs.shape[0],3*224*224)
+	# 		nontargetgrads.append(gradval.view(gradval.shape[0],-1,1))
+		
+	# 	nontargetgrads=torch.cat(nontargetgrads,-1)
+	# 	nontargetgrads=nontargetgrads.reshape(-1,150528).T
+	# 	nontargetgrads=torch.qr(nontargetgrads)[0]
+
+			
+	# 	# print(nontargetgrads.shape)
+	# 	# 0/0
+	# 	##############################
+	# 	mytargetgrads=[]
+	# 	for idx_ts,ts in enumerate(mytargetlabels):
+
+	# 		gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=model.U,retain_graph=(True,False)[idx_ts==len(mytargetlabels)-1])[0][:,ts,:]
+	# 		#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=True)[0].view(newinputs.shape[0],3*224*224)
+	# 		mytargetgrads.append(gradval.view(gradval.shape[0],-1,1))
+
+
+	# 	mytargetgrads=torch.cat(mytargetgrads,-1)
+	# 	mytargetgrads=mytargetgrads.reshape(-1,150528).T
+
+	# 	#mytargetgrads=torch.sum(mytargetgrads,-1).view(mytargetgrads.shape[0],-1,1)
+	# 	print(mytargetgrads.shape,nontargetgrads.shape)
+	# 	#proj_target_grads=mytargetgrads-torch.bmm(nontargetgrads,torch.bmm(torch.transpose(nontargetgrads,1,2),mytargetgrads))
+	# 	proj_target_grads=mytargetgrads-torch.matmul(nontargetgrads,torch.matmul(torch.transpose(nontargetgrads,0,1),mytargetgrads))
+	# 	proj_target_grads=proj_target_grads.squeeze().T
+	# 	# modify the code so that the update can be done for multiple target classes
+			
+	# 	#proj_target_grads=torch.sum(proj_target_grads,dim=0)
+
+	# 	return proj_target_grads, nontargetgrads, losses_dict
+
+	def UMLLperturb(self,model,inputs,newlabels,mytargetlabels,nontargetlabels, criterion,model_params,to_use_selection_mask):
+		
+		model.zero_grad()
+		inputs.requires_grad=True
+
+		outputs,_ = model(inputs,model_params)
+		#criterion=torch.nn.BCEWithLogitsLoss(weight=None, size_average=None, reduce=None, reduction='none')
+		losses_dict,lossval = criterion(outputs,newlabels,mytargetlabels,use_selection_mask=to_use_selection_mask,model=model,getfull=True)
+
+		#lossval = criterion(outputs, newlabels.type(torch.cuda.FloatTensor))
+
+		#losses_dict={'bce_loss':lossval.sum()}
+		nontargetgrads=[]
+		#for idx_ts,ts in enumerate(nontargetlabels):
+		for idx_ts,ts in enumerate(nontargetlabels):
+			#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=(True,False)[idx_ts==len(nontargetlabels+mytargetlabels)-1])[0].view(newinputs.shape[0],3*224*224)
+			gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=inputs,retain_graph=True)[0].view(inputs.shape[0],3*224*224)
+			#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=inputs,retain_graph=True)[0][:,ts,:]#.view(inputs.shape[0],3*224*224)
+			nontargetgrads.append(gradval.view(gradval.shape[0],-1,1))
+		
+		nontargetgrads=torch.cat(nontargetgrads,-1)
+		#nontargetgrads=nontargetgrads.reshape(-1,150528).T
+		nontargetgrads=torch.qr(nontargetgrads)[0]
+
+			
+		# print(nontargetgrads.shape)
+		# 0/0
+		##############################
+		mytargetgrads=[]
+		for idx_ts,ts in enumerate(mytargetlabels):
+
+			gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=inputs,retain_graph=(True,False)[idx_ts==len(mytargetlabels)-1])[0].view(inputs.shape[0],3*224*224)
+			#gradval=-1*torch.autograd.grad(outputs=lossval[:,ts].sum(),inputs=newinputs,retain_graph=True)[0].view(newinputs.shape[0],3*224*224)
+			mytargetgrads.append(gradval.view(gradval.shape[0],-1,1))
+
+
+		mytargetgrads=torch.cat(mytargetgrads,-1)
+		#mytargetgrads=mytargetgrads.reshape(-1,150528).T
+		#print(mytargetgrads.shape,nontargetgrads.shape)
+		#0/0
+
+		mytargetgrads=torch.sum(mytargetgrads,-1).view(mytargetgrads.shape[0],-1,1)
+		#print(mytargetgrads.shape,nontargetgrads.shape)
+		proj_target_grads=mytargetgrads-torch.bmm(nontargetgrads,torch.bmm(torch.transpose(nontargetgrads,1,2),mytargetgrads))
+		#proj_target_grads=mytargetgrads-torch.matmul(nontargetgrads,torch.matmul(torch.transpose(nontargetgrads,0,1),mytargetgrads))
+		proj_target_grads=proj_target_grads.squeeze()
+			
+		proj_target_grads=torch.sum(proj_target_grads,dim=0)
+
+		return proj_target_grads, nontargetgrads, losses_dict
+		# selectlabels=newlabels[:,mytargetlabels].squeeze()
+		# #print(proj_target_grads[selectlabels==0,:].shape,proj_target_grads[selectlabels==1,:].shape)
+		# zero_u_sum=torch.sum(proj_target_grads[selectlabels==0,:],dim=0)
+		# ones_u_sum=torch.sum(proj_target_grads[selectlabels==1,:],dim=0)
+		# zero_u_sum=zero_u_sum
+		
+		# # print(zero_u_sum.shape,ones_u_sum.shape)
+		# # print(torch.sum(zero_u_sum),torch.sum(ones_u_sum))
+		# # print(proj_target_grads.shape)
+		# return torch.stack([zero_u_sum,ones_u_sum],dim=0),nontargetgrads,losses_dict
+		0/0
+		# modify the code so that the update can be done for multiple target classes
+			
+		#proj_target_grads=torch.sum(proj_target_grads,dim=0)
+
+		return proj_target_grads, nontargetgrads, losses_dict
+			
+		
 
 	def perturb(self,model,inputs,newlabels,mytargetlabels,nontargetlabels, eps_val,norm,step_size, criterion,out_iterations,in_iterations):
 

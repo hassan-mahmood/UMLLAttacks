@@ -56,69 +56,248 @@ class UAPLoss(nn.Module):
         self.bceloss=torch.nn.BCEWithLogitsLoss(weight=None, size_average=None, reduce=None, reduction='none')
         #self.bceloss=AsymmetricLossOptimized()
 
-    # def compute_orthogonal_loss(self,model):
-    #     # get UAPs
-    #     U=model.get_UAPs()
-    #     #print('Shape of U:',U.shape)
-    #     #print(U[0,:].shape)
+    
+#     def compute_orthogonal_loss(self,model,target_class,use_selection_mask):
+#         # get UAPs
 
-    #     orthloss=0.0
-    #     for k in range(2):
-    #         tempU = U[k,:].squeeze()
+#         #Outputs,F=model.get_UAPs_features()
+#         Outputs,F=model.get_params()
+#         # Outputs=O[1]
+#         # Features=F[1]
 
-    #         dotproduct=torch.matmul(tempU,tempU.T).cuda()
-    #         #print(dotproduct.shape)
+#         orthloss=0.0
 
-    #         mask=torch.ones_like(dotproduct).cuda() - torch.eye(dotproduct.shape[0]).cuda()
-    #         #print(mask.shape)
-    #         out=torch.mul(mask,dotproduct)
-            
-    #         orthloss += torch.sum(out**2)/(out.shape[0]*out.shape[1])
-
-    #     tempU0 = U[0,:].squeeze()
-    #     tempU1 = U[1,:].squeeze()
-
-    #     dotproduct=torch.matmul(tempU0,tempU1.T).cuda()
-    #     #print(dotproduct.shape)
-
-    #     mask=torch.ones_like(dotproduct).cuda() - torch.eye(dotproduct.shape[0]).cuda()
-    #     #print(mask.shape)
-    #     out=torch.mul(mask,dotproduct)
+#         for Features in F:
         
-    #     temploss = torch.sum(out**2)/(out.shape[0]*out.shape[1])
-    #     orthloss+=temploss
+#             with torch.no_grad():
+#                 normval=torch.linalg.vector_norm(Features,ord=2,dim=1,keepdim=True)
+            
+#             k=Features/normval
 
-    #     return orthloss,temploss
+#             dotproduct=torch.matmul(k,k.T).cuda()
+#             ones=torch.ones_like(dotproduct)-torch.eye(dotproduct.shape[0],dtype=torch.float32).cuda()
+#             expmat=torch.exp(dotproduct)*ones.cuda()
+
+#             # dotproduct=torch.matmul(k_wograd,k.T).cuda()
+#             # #print('Dot product:',dotproduct.shape)
+#             # ones=torch.ones_like(dotproduct)-torch.eye(dotproduct.shape[0]).cuda()
+#             # expmat=torch.exp(dotproduct)*ones.cuda()
+
+#             orthloss+= 1.0/torch.sum(expmat)
+
+#         # print(orthloss)
+#         # 0/0
+#         orthloss = orthloss#/(Outputs[0].shape[0]*Outputs[0].shape[0]*len(F))
+#         print(orthloss)
+
+#         return orthloss#,Outputs
+
+#         Features=model.get_UAPs_features()
+        
+#         #print('Features length:',len(Features))
+#         #normalize feature vectors
+
+#         # with torch.no_grad():
+#         #     #U = U.div_(torch.norm(U,dim=1,keepdim=True))
+#         #     #U = U.div_(torch.linalg.vector_norm(U,ord=2,dim=1,keepdim=True))
+#         #     U = U.div_(torch.linalg.vector_norm(U,ord=2,dim=1,keepdim=True)+1e-10)
+
+#         #U = U.div_(torch.linalg.vector_norm(U,ord=2,dim=1,keepdim=True)+1e-10)
+#         orthloss=0.0
+        
+#         n_classes=Features[0].shape[0]
+#         Features=[torch.cat(Features,dim=0)]
+        
+#         for k in Features:
+#             normval=torch.linalg.vector_norm(k,ord=2,dim=1,keepdim=True)
+#             #print(normval)
+#             k=k/normval
+
+#             with torch.no_grad():
+#                 k_wograd=torch.clone(k).detach()
+
+            
+#             #print('k shape:',k.shape)
+
+#             #dotproduct=torch.matmul(k,k.T).cuda()
+#             #print('dotproduct shape:',dotproduct.shape)
+
+#             #print(dotproduct)
+#             #diff=dotproduct*(1.0-torch.eye(dotproduct.shape[0])).cuda()
+#             #expmat=torch.exp(dotproduct)*(1.0-torch.eye(dotproduct.shape[0])).cuda()
+
+#             # if use_selection_mask:
+#             #     dotproduct=torch.matmul(k_wograd,k[target_class,:]).cuda()
+#             #     ones=torch.ones_like(dotproduct)
+#             #     ones[target_class]=0.0
+#             #     expmat=torch.exp(dotproduct)*ones.cuda()
+#             # else:
+#             #     dotproduct=torch.matmul(k_wograd,k.T).cuda()
+#             #     print('Dot product:',dotproduct.shape)
+#             #     ones=torch.ones_like(dotproduct)-torch.eye(dotproduct.shape[0]).cuda()
+#             #     print(ones)
+#             #     #ones[target_class]=0.0
+#             #     expmat=torch.exp(dotproduct)*ones.cuda()
+#             #     print(expmat)
+#             #     0/0
+#             dotproduct=torch.matmul(k_wograd,k[target_class,:]).cuda()
+#             ones=torch.ones_like(dotproduct)
+#             ones[target_class]=0.0
+#             expmat=torch.exp(dotproduct)*ones.cuda()
+
+#             # dotproduct=torch.matmul(k_wograd,k.T).cuda()
+#             # #print('Dot product:',dotproduct.shape)
+#             # ones=torch.ones_like(dotproduct)-torch.eye(dotproduct.shape[0]).cuda()
+#             # expmat=torch.exp(dotproduct)*ones.cuda()
+
+#             orthloss += 1.0/torch.sum(expmat)
+#             #ones[target_class]=0.0
+            
+#             #print(expmat)
+#             #print(expmat.shape)
+#             #0/0
+            
+#             #print(expmat)
+#             #0/0
+
+#             # for tc in [target_class,target_class+n_classes]:
+#             #     dotproduct=torch.matmul(k_wograd,k[tc,:]).cuda()
+#             #     ones=torch.ones_like(dotproduct)
+#             #     ones[target_class]=0.0
+#             #     expmat=torch.exp(dotproduct)*ones.cuda()
+#             #     orthloss += 1.0/torch.sum(expmat)
+
+#             #print(expmat)
+#             #print(diff)
+            
+#             #diff=dotproduct - torch.eye(dotproduct.shape[0]).cuda()
+
+#             #orthloss += torch.sum(torch.square(diff))/(diff.shape[0]*diff.shape[1])
+# #            
+            
+#         #print('U requires grad1:',U.requires_grad)
+#         #U=model.get_UAPs()
+#         #print('Shape of U:',U.shape)
+#         #print(U[0,:].shape)
+        
+#         #print(dotproduct.shape)
+
+#         #mask=torch.ones_like(dotproduct).cuda() - torch.eye(dotproduct.shape[0]).cuda()
+#         #print(mask.shape)
+#         #out=torch.mul(mask,dotproduct)
+        
+#         return orthloss
+
+#         # orthloss=0.0
+#         # for k in range(2):
+#         #     tempU = U[k,:,:].squeeze()
+
+#         #     dotproduct=torch.matmul(tempU,tempU.T).cuda()
+#         #     #print(dotproduct.shape)
+
+#         #     mask=torch.ones_like(dotproduct).cuda() - torch.eye(dotproduct.shape[0]).cuda()
+#         #     #print(mask.shape)
+#         #     out=torch.mul(mask,dotproduct)
+            
+#         #     orthloss += torch.sum(out**2)/(out.shape[0]*out.shape[1])
+
+#         # tempU0 = U[0,:,:].squeeze()
+#         # tempU1 = U[1,:,:].squeeze()
+
+#         # dotproduct=torch.matmul(tempU0,tempU1.T).cuda()
+#         # #print(dotproduct.shape)
+
+#         # #mask=torch.ones_like(dotproduct).cuda() - torch.eye(dotproduct.shape[0]).cuda()
+#         # #print(mask.shape)
+#         # #out=torch.mul(mask,dotproduct)
+#         # out=dotproduct
+        
+#         # temploss = torch.sum(out**2)/(out.shape[0]*out.shape[1])
+#         # orthloss+=temploss
+
+#         # return orthloss,temploss
+#     # def compute_orthogonal_loss(self,model,target_classes):
+#     #     # get UAPs
+#     #     U=model.get_params()
+#     #     #print('Shape of U:',U.shape)
+#     #     #print(U[0,:].shape)
+
+#     #     orthloss=0.0
+#     #     for k in range(2):
+#     #         tempU = U[k,:].squeeze()
+
+#     #         dotproduct=torch.matmul(tempU,tempU.T).cuda()
+#     #         #print(dotproduct.shape)
+
+#     #         mask=torch.ones_like(dotproduct).cuda() - torch.eye(dotproduct.shape[0]).cuda()
+#     #         #print(mask.shape)
+#     #         out=torch.mul(mask,dotproduct)
+            
+#     #         orthloss += torch.sum(out**2)/(out.shape[0]*out.shape[1])
+
+#     #     tempU0 = U[0,:].squeeze()
+#     #     tempU1 = U[1,:].squeeze()
+
+#     #     dotproduct=torch.matmul(tempU0,tempU1.T).cuda()
+#     #     #print(dotproduct.shape)
+
+#     #     mask=torch.ones_like(dotproduct).cuda() - torch.eye(dotproduct.shape[0]).cuda()
+#     #     #print(mask.shape)
+#     #     out=torch.mul(mask,dotproduct)
+        
+#     #     temploss = torch.sum(out**2)/(out.shape[0]*out.shape[1])
+#     #     orthloss+=temploss
+
+#     #     return orthloss,temploss
     def compute_orthogonal_loss(self,model,target_class,use_selection_mask):
         # get UAPs
 
-        Outputs,F=model.get_UAPs_features()
+        #Outputs,F=model.get_UAPs_features()
+        U=model.get_params()
+
+        orthloss=torch.square(U-U[0,target_class,:]).sum(dim=2)
+        orthloss+=torch.square(U-U[1,target_class,:]).sum(dim=2)
+        print(orthloss.shape)
+
+        with torch.no_grad():
+            mask=torch.ones_like(orthloss)
+            mask[:,target_class]=0.0
+
+        orthloss=torch.mul(orthloss,mask).sum()
+
+        orthloss=orthloss/(U.shape[0]*U.shape[1]*U.shape[2])
+        
+        
+        return orthloss 
+
+
+
+
+
+        0/0
         # Outputs=O[1]
         # Features=F[1]
-
+        U=torch.cat([U[0],U[1]],dim=0)
+        #print(torch.linalg.vector_norm(U,ord=2,dim=1,keepdim=True))
         orthloss=0.0
 
-        for Features in F:
-        
-            with torch.no_grad():
-                normval=torch.linalg.vector_norm(Features,ord=2,dim=1,keepdim=True)
+
+        with torch.no_grad():
+            normval=torch.linalg.vector_norm(U,ord=2,dim=1,keepdim=True)
             
-            k=Features/normval
+        k=U/normval
+        #print(torch.linalg.vector_norm(U,ord=2,dim=1,keepdim=True))
 
-            dotproduct=torch.matmul(k,k.T).cuda()
-            ones=torch.ones_like(dotproduct)-torch.eye(dotproduct.shape[0],dtype=torch.float32).cuda()
-            expmat=torch.exp(dotproduct)*ones.cuda()
+        dotproduct=torch.matmul(k,k.T).cuda()
+        ones=torch.ones_like(dotproduct)-torch.eye(dotproduct.shape[0],dtype=torch.float32).cuda()
+        expmat=torch.exp(dotproduct)*ones.cuda()
+        orthloss+= 1.0/torch.sum(expmat)
 
-            # dotproduct=torch.matmul(k_wograd,k.T).cuda()
-            # #print('Dot product:',dotproduct.shape)
-            # ones=torch.ones_like(dotproduct)-torch.eye(dotproduct.shape[0]).cuda()
-            # expmat=torch.exp(dotproduct)*ones.cuda()
+        #print(orthloss)
+        # 0/0
+        #orthloss = orthloss#/(Outputs[0].shape[0]*Outputs[0].shape[0]*len(F))
 
-            orthloss+= 1.0/torch.sum(expmat)
-
-        orthloss = orthloss/(Outputs[0].shape[0]*Outputs[0].shape[0]*len(F))
-
-        return orthloss,Outputs
+        return orthloss#,Outputs
 
         Features=model.get_UAPs_features()
         
@@ -244,9 +423,40 @@ class UAPLoss(nn.Module):
         # orthloss+=temploss
 
         # return orthloss,temploss
+    # def compute_orthogonal_loss(self,model,target_classes):
+    #     # get UAPs
+    #     U=model.get_params()
+    #     #print('Shape of U:',U.shape)
+    #     #print(U[0,:].shape)
 
-    
-    def forward(self,outputs,labels,target_classes,use_selection_mask=True,model=None,selection_mask=None):
+    #     orthloss=0.0
+    #     for k in range(2):
+    #         tempU = U[k,:].squeeze()
+
+    #         dotproduct=torch.matmul(tempU,tempU.T).cuda()
+    #         #print(dotproduct.shape)
+
+    #         mask=torch.ones_like(dotproduct).cuda() - torch.eye(dotproduct.shape[0]).cuda()
+    #         #print(mask.shape)
+    #         out=torch.mul(mask,dotproduct)
+            
+    #         orthloss += torch.sum(out**2)/(out.shape[0]*out.shape[1])
+
+    #     tempU0 = U[0,:].squeeze()
+    #     tempU1 = U[1,:].squeeze()
+
+    #     dotproduct=torch.matmul(tempU0,tempU1.T).cuda()
+    #     #print(dotproduct.shape)
+
+    #     mask=torch.ones_like(dotproduct).cuda() - torch.eye(dotproduct.shape[0]).cuda()
+    #     #print(mask.shape)
+    #     out=torch.mul(mask,dotproduct)
+        
+    #     temploss = torch.sum(out**2)/(out.shape[0]*out.shape[1])
+    #     orthloss+=temploss
+
+    #     return orthloss,temploss
+    def forward(self,outputs,labels,target_classes,use_selection_mask=True,model=None,selection_mask=None,getfull=False):
         with torch.no_grad():
             if use_selection_mask:
                 selection_mask=torch.zeros_like(labels).float()
@@ -254,21 +464,56 @@ class UAPLoss(nn.Module):
                     selection_mask[:,k]=1.0
                 #pass 
             else:
-                0/0
                 selection_mask=torch.ones_like(labels).float()
 
-        bceloss=torch.mul(self.bceloss(outputs,labels),selection_mask).sum()
+        bceloss=torch.mul(self.bceloss(outputs,labels),selection_mask)
+        # lossval=bceloss
+        # losses_dict={
+        # 'bce_loss':bceloss.sum(),
+        # }
+        # return losses_dict,lossval#bceloss
+        # 0/0
+        if not getfull:
+            bceloss=bceloss.sum()
+            
         bceloss=self.bcescale*(bceloss/outputs.shape[0])
 
         u=model.get_params()
-        normloss=torch.sum(torch.relu(torch.abs(u)-0.005))/(torch.prod(torch.tensor(u.shape)))
+        normloss=torch.sum(torch.relu(torch.abs(u)-0.05))/(torch.prod(torch.tensor(u.shape)))
+
+        losses_dict={
+        'bce_loss':bceloss.sum(),
+        'norm_loss':normloss
+        }
 
         lossval=bceloss+self.weightscale*normloss
-        losses_dict={
-        'bce_loss':bceloss,
-        'norm_loss':normloss
         
-        }
+        # if self.orthscale>0.0:
+        #     orthloss=self.orthscale*self.compute_orthogonal_loss(model,target_classes,use_selection_mask)
+        #     losses_dict['orth_loss']=orthloss 
+        #     lossval+=orthloss 
+
+        U=model.get_params()
+        U = U/torch.linalg.vector_norm(U,ord=2,dim=-1)[:,:,:,None]
+        
+        #nontargetclasses=list(set(list(range(num_classes))).difference(set(target_classes)))
+        dotprod=torch.sum(U*U[:,target_classes,:,:],dim=-1).squeeze()
+
+        
+        with torch.no_grad():
+            mask=torch.ones_like(dotprod)
+            mask[:,target_classes,:]=0.0
+        
+        dotprodloss=0.1*torch.sum(torch.relu(0.9-torch.abs(dotprod))*mask)
+        #dotprodloss = 0.1*-1*torch.sum(torch.square(dotprod * mask - 0.1))
+        losses_dict['dot_loss']=dotprodloss
+        lossval+=dotprodloss
+        #print(dotprodsum)
+
+
+
+        losses_dict['total_loss']=lossval.sum()
+
         return losses_dict,lossval#bceloss
 
 

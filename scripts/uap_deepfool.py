@@ -22,10 +22,10 @@ import configparser
 import ast, json
 import argparse
 import pickle
+from deepfool import *
 from datetime import datetime
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.tensorboard import SummaryWriter
-from scipy.linalg import subspace_angles
 pickle.HIGHEST_PROTOCOL = 4
 torch.set_printoptions(edgeitems=27)
 parser=argparse.ArgumentParser()
@@ -79,13 +79,13 @@ class Trainer:
 		#model.dotemp()
 
 		train_optimizer = optim.SGD(model.parameters(), lr=float(1.0))#,weight_decay=1e-4)
-		#train_optimizer = optim.Adam(model.parameters(), lr=float(1.0))#,weight_decay=1e-4)
-		scheduler = MultiStepLR(train_optimizer, milestones=[150], gamma=0.1)
+		scheduler = MultiStepLR(train_optimizer, milestones=[5,20], gamma=0.1)
+
 		#train_optimizer = optim.SGD(model.get_params(), lr=float(0.1))#,weight_decay=1e-4)
 		#model.Normalize_UAP(p_norm)
 		#start_epoch=0
 		num_epochs=100
-		for epoch in range(start_epoch,start_epoch+num_epochs):
+		for epoch in range(1):
 			#current_target_value=1.0-current_target_value
 
 			avg_meter=AverageMeter()
@@ -120,7 +120,10 @@ class Trainer:
 
 
 				for jk in range(num_classes):
-				#for jk in range(6):
+					store_folder=os.path.join('/mnt/raptor/hassan/MLUAPs/stores/',str(jk))
+					create_folder(store_folder)
+
+				#for jk in range(1,2):
 					print('Class:',jk)
 					for to_use_selection_mask in [True]:
 					# for totargetchange in [0.0,1.0]:
@@ -149,15 +152,10 @@ class Trainer:
 						# gradmask=torch.zeros_like(model.U,dtype=torch.float32)
 						# gradmask[:,jk,:]=1.0
 						# model.U.register_hook(lambda grad: torch.sign(grad) * 0.1*gradmask)
-						with torch.no_grad():
-							tempmask=torch.zeros((2,num_classes,2,3*224*224),dtype=torch.float32).cuda()
-							tempmask[:,jk,:,:]=1.0
-
-						model.U.register_hook(lambda grad: torch.mul(torch.sign(grad),tempmask) * 0.002)
-						#model.U.register_hook(lambda grad: torch.sign(grad) * 0.002)
-						#model.U.register_hook(lambda grad: grad * 0.002)
-						#model.U.register_hook(lambda grad: (grad/(torch.linalg.vector_norm(grad,ord=float('inf'),dim=2,keepdim=True)+1e-10)) * 0.002)
-						#model.x.register_hook(lambda grad: grad * 0.0002)
+						
+						# tempmask=torch.zeros((2,num_classes,3*224*224),dtype=torch.float32).cuda()
+						# tempmask[:,jk,:]=1.0
+						# model.U.register_hook(lambda grad: torch.mul(torch.sign(grad),tempmask) * 0.002)
 												
 						#model.uap_weights.register_hook(lambda grad: grad * 0.00001)
 
@@ -175,23 +173,41 @@ class Trainer:
 						'target_class':torch.Tensor([jk]).long()
 						}
 						
-						train_optimizer.zero_grad()
-						#inputs=torch.clone(all_inputs[select_indices,:,:,:])
-						inputs=torch.clone(all_inputs)
-						outputs,features = model(inputs,model_params)
+						r_tot,pert_images = deepfool(all_inputs, model, newlabels, [jk], to_use_selection_mask,max_iter=10000)
 						
-						losses_dict,loss = criterion(outputs,newlabels,[jk],use_selection_mask=to_use_selection_mask,model=model,getfull=False)
+						for u in range(r_tot.shape[0]):
+							np.save(os.path.join(store_folder,img_ids[u].replace('.jpg','.npy')),torch.clone(r_tot[u,:,:,:]).detach().cpu().numpy())
+
+						df=pd.DataFrame(outputs.cpu().numpy())
+						df['ids']=np.array(img_ids)
+						df.to_hdf(os.path.join(store_folder,str(i)+'_clean.h5'),key='df',mode='w')
+
+						# df=pd.DataFrame(clean_outputs.cpu().numpy())
+						# df['ids']=np.array(img_ids)
+						# df.to_hdf(os.path.join(orth_store_folder,str(number_of_batch_iterations)+'_clean.h5'),key='df',mode='w')
+
+						#train_optimizer.zero_grad()
+						#inputs=torch.clone(all_inputs[select_indices,:,:,:])
+						#inputs=torch.clone(all_inputs)
+						outputs,features = model(pert_images,{'epsilon_norm':0.0})
+
+						df=pd.DataFrame(outputs.cpu().numpy())
+						df['ids']=np.array(img_ids)
+						df.to_hdf(os.path.join(store_folder,str(i)+'_attack.h5'),key='df',mode='w')
+
+
+
+						#losses_dict,loss = criterion(outputs,newlabels,[jk],use_selection_mask=to_use_selection_mask,model=model,getfull=False)
+						
+						
 						#print('sum before update:',torch.sum(model.U.grad))
 						
-						loss.backward()
+						# loss.backward()
+						# train_optimizer.step()
 						
-						#torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
-
-						train_optimizer.step()
-						
-						#print(model.uap_weights.flatten())
-						# 
-						#model.uap_weights.data=torch.nn.functional.normalize(model.uap_weights.data,p=1.0,dim=2)
+						# #print(model.uap_weights.flatten())
+						# # 
+						# #model.uap_weights.data=torch.nn.functional.normalize(model.uap_weights.data,p=1.0,dim=2)
 
 						# with torch.no_grad():
 						# 	model.Normalize_UAP(p_norm,epsilon_norm)
@@ -206,8 +222,8 @@ class Trainer:
 						perf_match=torch.count_nonzero(perf_match==0.0)
 
 						
-						for l in losses_dict.keys():
-							avg_meter.update('tr_'+l,losses_dict[l].item())
+						# for l in losses_dict.keys():
+						# 	avg_meter.update('tr_'+l,losses_dict[l].item())
 
 						totals[jk]+=outputs.shape[0]
 						flipped[jk]+=flipped_labels
@@ -217,24 +233,21 @@ class Trainer:
 						#print(', '.join(["{:.3f}".format(x) for x in [bceloss.item(),pw_bceloss.item(),U_sum_bceloss.item(),Up_sum_bceloss.item(),orthloss.item(),ind_loss.item(),normloss.item(),sumval.item()]]))
 
 						
-						lossst='\n'+', '.join([x[:4]+" {:.3f}".format(losses_dict[x]) for x in losses_dict.keys()])
+						# lossst='\n'+', '.join([x[:4]+" {:.3f}".format(losses_dict[x]) for x in losses_dict.keys()])
 
 						#print('Total:',inputs.shape[0],', Success:',tempsucc.item(),', Perf:',perf_match.item(),', Flipped:',"{:.3f}".format(flipped_labels/(tempsucc.item()+1e-10)),", weights: {:.2f}".format(torch.sum(model.U).item()),", uap weights: {:.2f}".format(torch.sum(torch.linalg.vector_norm(model.uap_weights.data,dim=1,ord=1)).item()),", weights sum: {:.2f}".format(torch.sum(model.uap_weights.data)),lossst)
-						print('Total:',inputs.shape[0],', Success:',tempsucc.item(),', Perf:',perf_match.item(),', Flipped:',"{:.3f}".format(flipped_labels/(tempsucc.item()+1e-10)),", weights: {:.2f}".format(torch.sum(model.U).item()),lossst)
-						
-
+						print('Total:',all_inputs.shape[0],', Success:',tempsucc.item(),', Perf:',perf_match.item(),', Flipped:',"{:.3f}".format(flipped_labels/(tempsucc.item()+1e-10)),", weights: {:.2f}".format(torch.sum(model.U).item()))#,lossst)
 						#print(torch.sum(model.U,dim=2))
 						#print(loss)
-						#Q = model.U[0]
-						#R=model.U[1]
+						
+						#avg_meter.update('tr_train_loss',loss.item())
+						
+						
+						# if(tempsucc==inputs.shape[0]):
+						#  	break
 
-						#print('Dist weight:',torch.sum(torch.matmul(Q, Q.T)),torch.sum(torch.matmul(R, R.T)))
-						
-						avg_meter.update('tr_train_loss',loss.item())
-						
-						
-						if(tempsucc==inputs.shape[0]):
-						 	break
+
+						continue
 						
 						# totals[jk]+=outputs.shape[0]
 						# flipped[jk]+=flipped_labels
@@ -252,28 +265,15 @@ class Trainer:
 						
 						#scheduler.step()
 
-				
 
-				with torch.no_grad():
-					model.Normalize_UAP(p_norm,epsilon_norm)
+
 				# print(torch.where(newlabels[0,:]==1)[0],torch.where(outputs[0,:]>0)[0])
-				print('Percentage:',', '.join(["{:.3f}".format((success[jk]/(totals[jk]+1e-10)).item()) for jk in range(num_classes)]),
-					'\nFlipped:',', '.join(["{:.3f}".format((flipped[jk]/(success[jk]+1e-10)).item()) for jk in range(num_classes)]),
-					'\nPerfect:',', '.join(["{:.3f}".format((perf_matches[jk]/(totals[jk]+1e-10)).item()) for jk in range(num_classes)]),
-					)
-				print('Norms:',torch.linalg.vector_norm(model.U.data,ord=float('inf'),dim=3).detach().cpu().numpy().tolist())
+				# print('Percentage:',', '.join(["{:.3f}".format((success[jk]/(totals[jk]+1e-10)).item()) for jk in range(num_classes)]),
+				# 	'\nFlipped:',', '.join(["{:.3f}".format((flipped[jk]/(success[jk]+1e-10)).item()) for jk in range(num_classes)]),
+				# 	'\nPerfect:',', '.join(["{:.3f}".format((perf_matches[jk]/(totals[jk]+1e-10)).item()) for jk in range(num_classes)]),
+				# 	)
+				# print('Norms:',torch.linalg.vector_norm(model.U.data,ord=float('inf'),dim=2).detach().cpu().numpy().tolist())
 				
-				#print('Norms:',torch.linalg.vector_norm(model.U.data,ord=float('inf'),dim=3).detach().cpu().numpy()[:,:6,:].tolist())
-				# tempU=model.U 
-				# l=[]
-				# for i in range(6):
-				# 	for j in range(6):
-				# 		l.append(np.rad2deg(subspace_angles(tempU[1,i,:,:].detach().cpu().numpy(),tempU[1,j,:,:].detach().cpu().numpy())).tolist())
-
-				
-				# #print(', '.join(["{:.3f}".format(j) for j in l]))
-				# print(l)
-
 				# u=model.get_params()
 				
 				# for q in range(2):
@@ -282,9 +282,9 @@ class Trainer:
 				
 				# 	
 			# print statistics
-			trainstatout = '\nTrain - Percentage:,'+', '.join(["{:.3f}".format((success[jk]/(totals[jk]+1e-10)).item()) for jk in range(num_classes)]) +'\nFlipped:'+', '.join(["{:.3f}".format((flipped[jk]/(success[jk]+1e-10)).item()) for jk in range(num_classes)])+'\nPerfect:'+', '.join(["{:.3f}".format((perf_matches[jk]/(totals[jk]+1e-10)).item()) for jk in range(num_classes)])
+			# trainstatout = '\nTrain - Percentage:,'+', '.join(["{:.3f}".format((success[jk]/(totals[jk]+1e-10)).item()) for jk in range(num_classes)]) +'\nFlipped:'+', '.join(["{:.3f}".format((flipped[jk]/(success[jk]+1e-10)).item()) for jk in range(num_classes)])+'\nPerfect:'+', '.join(["{:.3f}".format((perf_matches[jk]/(totals[jk]+1e-10)).item()) for jk in range(num_classes)])
 
-			scheduler.step()
+			# scheduler.step()
 			#losses=avg_meter.get_values()
 
 			# lossst=''
@@ -292,8 +292,9 @@ class Trainer:
 			# 	if 'tr' in l:
 			# 		lossst+=l+':'+str(losses[l])+', '
 			
-			
-			
+			# print('\n',lossst)
+
+			0/0
 			model.eval()
 
 			#torch.set_grad_enabled(False)
@@ -321,7 +322,6 @@ class Trainer:
 					
 					
 					for jk in range(num_classes):
-					#for jk in range(6):
 					#for jk in range(1,2):
 						#for totargetchange in [0.0,1.0]:
 					#for jk in range(1):
@@ -380,26 +380,22 @@ class Trainer:
 						avg_meter.update('val_val_loss',loss.item())
 
 						outputs=torch.where(outputs>0,1,0)
-						flip_select=outputs[:,jk]==newlabels[:,jk]
-						tempsucc=torch.count_nonzero(flip_select).cpu()
-						flipped_labels=torch.count_nonzero(outputs[flip_select,:].flatten()!=newlabels[flip_select,:].flatten()).cpu().item()#-tempsucc.item()
-
+						
 						perf_match=outputs!=newlabels
 						perf_match=torch.sum(perf_match.float(),dim=1)
 						perf_match=torch.count_nonzero(perf_match==0.0)
-
 						
-						for l in losses_dict.keys():
-							avg_meter.update('tr_'+l,losses_dict[l].item())
+						
 
 						totals[jk]+=outputs.shape[0]
-						flipped[jk]+=flipped_labels
+						flip_select=outputs[:,jk]==newlabels[:,jk]
+						tempsucc=torch.count_nonzero(flip_select).cpu()
 						success[jk]+=tempsucc
+						flipped[jk]+=torch.count_nonzero(outputs[flip_select,:].flatten()!=newlabels[flip_select,:].flatten()).cpu().item()#-tempsucc.item()
 						perf_matches[jk]+=perf_match.cpu().item()
 						
 						
-						#print('Total:',inputs.shape[0],', Success:',tempsucc.item(),', Flipped:',flipped_labels/num_classes,torch.sum(model.U).item())
-						print('Total:',inputs.shape[0],', Success:',tempsucc.item(),', Perf:',perf_match.item(),', Flipped:',"{:.3f}".format(flipped_labels/(tempsucc.item()+1e-10)),", weights: {:.2f}".format(torch.sum(model.U).item()),lossst)
+						print('Total:',inputs.shape[0],', Success:',tempsucc.item(),', Flipped:',flipped_labels/num_classes,torch.sum(model.U).item())
 
 				
 					
@@ -410,8 +406,8 @@ class Trainer:
 						)
 					
 
-				#bceloss,normloss,parent_margin_loss,neg_margin_loss,loss=criterion(outputs,labels,model.get_fc_weights())
-			# writer.add_scalar('Val Accuracy',val_acc,epoch)
+					#bceloss,normloss,parent_margin_loss,neg_margin_loss,loss=criterion(outputs,labels,model.get_fc_weights())
+				# writer.add_scalar('Val Accuracy',val_acc,epoch)
 
 			now = datetime.now()
 			
@@ -458,10 +454,10 @@ class Trainer:
 				'training_loss':0.0,
 				'val_acc':0.0
 			}
-			print('Storing model')
+
 			#if(epoch%weight_store_every_epochs==0):
-			#if(epoch%2==0):
-			store_checkpoint(checkpointdict,os.path.join(weights_dir,'model-'+str(epoch)+'.pt'))
+			if(epoch%2==0):
+				store_checkpoint(checkpointdict,os.path.join(weights_dir,'model-'+str(epoch)+'.pt'))
 
 
 

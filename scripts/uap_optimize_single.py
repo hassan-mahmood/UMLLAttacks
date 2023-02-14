@@ -119,10 +119,10 @@ class Trainer:
 					labels=torch.where(labels>0,1,0).float()
 
 
-				for jk in range(num_classes):
-				#for jk in range(6):
+				#for jk in range(num_classes):
+				for jk in range(1,2):
 					print('Class:',jk)
-					for to_use_selection_mask in [True]:
+					for to_use_selection_mask in [False]:
 					# for totargetchange in [0.0,1.0]:
 						#for jk in range(1):
 					#for jk in range(1,2):
@@ -144,17 +144,19 @@ class Trainer:
 
 						#if(current_target_value==0.0):
 						# print(model.U[0,:5,:5])
-						newlabels[:,jk] = 1 - newlabels[:,jk]
+
+						# newlabels[:,jk] = 1 - newlabels[:,jk]
+						newlabels = torch.ones_like(newlabels)#1 - newlabels[:,jk]
 
 						# gradmask=torch.zeros_like(model.U,dtype=torch.float32)
 						# gradmask[:,jk,:]=1.0
 						# model.U.register_hook(lambda grad: torch.sign(grad) * 0.1*gradmask)
-						with torch.no_grad():
-							tempmask=torch.zeros((2,num_classes,2,3*224*224),dtype=torch.float32).cuda()
-							tempmask[:,jk,:,:]=1.0
+						# with torch.no_grad():
+						# 	tempmask=torch.zeros((2,num_classes,3*224*224),dtype=torch.float32).cuda()
+						# 	tempmask[:,jk,:,:]=1.0
 
-						model.U.register_hook(lambda grad: torch.mul(torch.sign(grad),tempmask) * 0.002)
-						#model.U.register_hook(lambda grad: torch.sign(grad) * 0.002)
+						# model.U.register_hook(lambda grad: torch.mul(torch.sign(grad),tempmask) * 0.002)
+						model.U.register_hook(lambda grad: torch.sign(grad) * 0.002)
 						#model.U.register_hook(lambda grad: grad * 0.002)
 						#model.U.register_hook(lambda grad: (grad/(torch.linalg.vector_norm(grad,ord=float('inf'),dim=2,keepdim=True)+1e-10)) * 0.002)
 						#model.x.register_hook(lambda grad: grad * 0.0002)
@@ -261,7 +263,7 @@ class Trainer:
 					'\nFlipped:',', '.join(["{:.3f}".format((flipped[jk]/(success[jk]+1e-10)).item()) for jk in range(num_classes)]),
 					'\nPerfect:',', '.join(["{:.3f}".format((perf_matches[jk]/(totals[jk]+1e-10)).item()) for jk in range(num_classes)]),
 					)
-				print('Norms:',torch.linalg.vector_norm(model.U.data,ord=float('inf'),dim=3).detach().cpu().numpy().tolist())
+				print('Norms:',torch.linalg.vector_norm(model.U.data,ord=float('inf'),dim=2).detach().cpu().numpy().tolist())
 				
 				#print('Norms:',torch.linalg.vector_norm(model.U.data,ord=float('inf'),dim=3).detach().cpu().numpy()[:,:6,:].tolist())
 				# tempU=model.U 
@@ -320,7 +322,8 @@ class Trainer:
 					labels=torch.where(labels>0,1,0).float()
 					
 					
-					for jk in range(num_classes):
+					#for jk in range(num_classes):
+					for jk in range(1,2):
 					#for jk in range(6):
 					#for jk in range(1,2):
 						#for totargetchange in [0.0,1.0]:
@@ -344,7 +347,9 @@ class Trainer:
 
 						#
 						#newlabels = 1 - newlabels
-						newlabels[:,jk] = 1 - newlabels[:,jk]
+						#newlabels[:,jk] = 1 - newlabels[:,jk]
+						newlabels = torch.ones_like(newlabels)
+						
 						model_params={
 						'p_norm':p_norm,
 						'epsilon_norm':epsilon_norm,
@@ -369,7 +374,7 @@ class Trainer:
 						# 	success[jk]+=torch.count_nonzero(outputs[:,jk]<=0).cpu()
 						# else:
 						# 	success[jk]+=torch.count_nonzero(outputs[:,jk]>0).cpu()	
-						losses_dict,loss = criterion(outputs,newlabels,[jk],use_selection_mask=True,model=model)
+						losses_dict,loss = criterion(outputs,newlabels,[jk],use_selection_mask=False,model=model)
 						
 						
 						lossst=', '.join([x[:4]+" {:.3f}".format(losses_dict[x]) for x in losses_dict.keys()])
