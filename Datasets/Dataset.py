@@ -2,6 +2,7 @@ import os
 import pickle
 pickle.HIGHEST_PROTOCOL = 3
 
+import cv2 
 import pandas as pd
 #from torchvision.io import read_image
 from torch.utils.data import Dataset
@@ -12,7 +13,6 @@ import numpy as np
 from tqdm import tqdm 
 import torch
 from utils.utility import *
-import cv2 
 import ast 
 from torchvision import transforms
 from scipy.special import expit, logit
@@ -25,204 +25,108 @@ torch.manual_seed(999)
 
 
 
-# class ImageDataset(Dataset):
-#     def __init__(self, params,mode):
+class SelectiveDataset(Dataset):
+    def __init__(self, params):
+        # Pass labels, image ids, image directory
 
-#         self.input_size=int(params['input_size'])
-#         self.num_classes=params['num_classes']
-#         self.mode=mode
-#         dataset_name=params['dataset_name']
-
-#         preprocessfunc={'voc':self.pre_process_dataset,'nus':self.pre_process_dataset}
-#         getfunc={'voc':self.get_item,'nus':self.get_item}
-
-#         preprocessfunc[dataset_name](params)
-
-#         self.get_function=getfunc[dataset_name]
+        self.input_size=int(params['input_size'])
+        self.images_dir=params['images_dir']
+        self.all_img_ids=params['all_img_ids']
+        self.all_labels=params['all_labels']
         
+        self.all_image_paths=[os.path.join(self.images_dir,imgid) for imgid in self.all_img_ids]
 
-#     def pre_process_dataset(self,params):
+        self.transform= transforms.Compose([
+            #transforms.RandomResizedCrop(self.input_size),
+            #transforms.RandomHorizontalFlip(),
+            transforms.Resize(self.input_size),
+            transforms.CenterCrop(self.input_size),
+            transforms.ToTensor(),
+            #transforms.Normalize(meanstds['means'], meanstds['stds'])
+        ])
+    
+    def __len__(self):
+        return len(self.all_img_ids)
+        #return len(self.selected_images)
 
-#         labels_files=ast.literal_eval(params[self.mode+'_labels_files'])
-#         images_dirs=ast.literal_eval(params[self.mode+'_images_folders'])
-        
-#         #self.all_images=images_dirs[0]+self.img_labels.iloc[:,-1].to_numpy()
-#         self.all_img_ids=np.empty(shape=(0,))
-#         self.all_labels=np.empty(shape=(0,self.num_classes),dtype=np.float32)
-#         self.all_images=np.empty(shape=(0,))
+    def __getitem__(self, idx):
 
-#         for i in range(len(labels_files)):
-#             img_labels=pd.read_hdf(labels_files[i],key='df',mode='r')
-#             self.all_img_ids=np.concatenate((self.all_img_ids,img_labels.iloc[:,-1].to_numpy()),axis=0)
-#             self.all_labels=np.concatenate((self.all_labels,img_labels.iloc[:,:-1].to_numpy()),axis=0)
-#             self.all_images=np.concatenate((self.all_images,images_dirs[i]+img_labels.iloc[:,-1].to_numpy()),axis=0)
+        # img_path=os.path.join(self.images_dir,self.all_img_ids[idx])
+
+        image = Image.open(self.all_image_paths[idx]).convert('RGB')
+        label = np.array(self.all_labels[idx,:],dtype=np.float32)
+        return (self.transform(image),self.all_img_ids[idx]),torch.from_numpy(label)
+
+        #return self.get_function(idx)
 
 
-#         #meanstds = get_pickle_data('/mnt/raptor/hassan/data/KG_data/voc/meanstd')
-
-#         data_transforms = {
-#             'train': transforms.Compose([
-#                 transforms.RandomResizedCrop(self.input_size),
-#                 transforms.RandomHorizontalFlip(),
-#                 transforms.ToTensor(),
-#                 #transforms.Normalize(meanstds['means'], meanstds['stds'])
-#             ]),
-#             'val': transforms.Compose([
-#                 transforms.Resize(self.input_size),
-#                 transforms.CenterCrop(self.input_size),
-#                 transforms.ToTensor(),
-#                 #transforms.Normalize(meanstds['means'], meanstds['stds'])
-#             ]),
-#             'test': transforms.Compose([
-#                 transforms.Resize(self.input_size),
-#                 transforms.CenterCrop(self.input_size),
-#                 transforms.ToTensor(),
-#                 #transforms.Normalize(meanstds['means'], meanstds['stds'])
-#             ])
-#         }
-#         self.transform = data_transforms[self.mode]
-
-#         self.selected_labels=self.all_labels
-#         self.selected_images=self.all_images
-#         self.selected_img_ids=self.all_img_ids
-        
-        
-#     def set_class(self,c):
-#         self.current_class=c
-#         selected_indices=self.all_labels[:,c]==1
-#         self.selected_labels=self.all_labels[select_indices,:]
-#         print(self.selected_labels)
-#         print(self.selected_labels.shape)
-#         self.selected_images=self.all_images[selected_indices]
-#         self.selected_img_ids=self.all_img_ids[select_indices]
-
-#     def get_item(self,idx):
-#         img_path=self.selected_images[idx]
-#         image = Image.open(img_path).convert('RGB')
-#         label = np.array(self.selected_labels[idx,:],dtype=np.float32)
-#         return (self.transform(image),self.selected_img_ids[idx]),torch.from_numpy(label)        
-
-#     # def get_item(self,idx):
-#     #     img_path=self.all_images[idx]
-#     #     image = Image.open(img_path).convert('RGB')
-#     #     label = np.array(self.all_labels[idx,:],dtype=np.float32)
-#     #     return (self.transform(image),self.all_img_ids[idx]),torch.from_numpy(label)
-
-#     def __len__(self):
-#         return len(self.all_images)
-
-#     def __getitem__(self, idx):
-#         return self.get_function(idx)
-
+class CombinedDataset(Dataset):
+  def __init__(self,data_sets):
+    self.datasets=data_sets
+  def __getitem__(self,i):
+    return tuple(d[i] for d in self.datasets)
+  def __len__(self):
+    return min(len(d) for d in self.datasets)
 
 
 class ImageDataset(Dataset):
-    def __init__(self, params,mode):
+    def __init__(self, params):
 
-        self.input_size=int(params['input_size'])
+        # self.input_size=int(params['input_size'])
+        self.input_size=int(params['image_size'])
         self.num_classes=params['num_classes']
-        self.mode=mode
+        
         dataset_name=params['dataset_name']
 
-        preprocessfunc={'voc':self.pre_process_dataset,'nus':self.pre_process_dataset}
-        getfunc={'voc':self.get_item,'nus':self.get_item}
-
-        preprocessfunc[dataset_name](params)
-
-        self.get_function=getfunc[dataset_name]
+        self.pre_process_dataset(params)
         
 
+        
     def pre_process_dataset(self,params):
 
-        labels_files=ast.literal_eval(params[self.mode+'_labels_files'])
-        images_dirs=ast.literal_eval(params[self.mode+'_images_folders'])
+        
+        images_dir=ast.literal_eval(params['images_dir'])
         
         #self.all_images=images_dirs[0]+self.img_labels.iloc[:,-1].to_numpy()
-        self.all_img_ids=np.empty(shape=(0,))
-        self.all_labels=np.empty(shape=(0,self.num_classes),dtype=np.float32)
-        self.all_images=np.empty(shape=(0,))
-
-        for i in range(len(labels_files)):
-            img_labels=pd.read_hdf(labels_files[i],key='df',mode='r')
-            self.all_img_ids=np.concatenate((self.all_img_ids,img_labels.iloc[:,-1].to_numpy()),axis=0)
-            self.all_labels=np.concatenate((self.all_labels,img_labels.iloc[:,:-1].to_numpy()),axis=0)
-            self.all_images=np.concatenate((self.all_images,images_dirs[i]+img_labels.iloc[:,-1].to_numpy()),axis=0)
-
-
-        #meanstds = get_pickle_data('/mnt/raptor/hassan/data/KG_data/voc/meanstd')
-
-        data_transforms = {
-            'train': transforms.Compose([
-                transforms.RandomResizedCrop(self.input_size),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                #transforms.Normalize(meanstds['means'], meanstds['stds'])
-            ]),
-            'val': transforms.Compose([
-                transforms.Resize(self.input_size),
-                transforms.CenterCrop(self.input_size),
-                transforms.ToTensor(),
-                #transforms.Normalize(meanstds['means'], meanstds['stds'])
-            ]),
-            'test': transforms.Compose([
-                transforms.Resize(self.input_size),
-                transforms.CenterCrop(self.input_size),
-                transforms.ToTensor(),
-                #transforms.Normalize(meanstds['means'], meanstds['stds'])
-            ])
-        }
-        self.transform = data_transforms[self.mode]
-
-        #selected_indices=np.zeros(self.all_labels.shape[0], dtype=bool)
-                            
-        # for ts in [1,2,3,4]:
-        #     selected_indices=np.logical_or(selected_indices, self.all_labels[:,ts]==1.0)
-
-
-        print(self.all_labels.shape,self.all_images.shape,self.all_img_ids.shape)
-        # self.all_labels=self.all_labels[selected_indices,:]
-        # self.all_images=self.all_images[selected_indices,]
-        # self.all_img_ids=self.all_img_ids[selected_indices,]
-        # print('Selected:',self.all_labels.shape,self.all_images.shape,self.all_img_ids.shape)
-        #self.select_label(0,0)
+        self.all_img_ids=pickle.load(open(ast.literal_eval(params['img_ids_file']),'rb'))
+        self.all_images=[os.path.join(images_dir,s) for s in self.all_img_ids]
+        self.all_labels=np.load(ast.literal_eval(params['labels_file']))
+        print('Data size before:',len(self.all_img_ids),self.all_labels.shape)
+        present_images=np.ones_like(self.all_labels[:,0])
+        count=0
+        # for imgidx,img in enumerate(self.all_img_ids):
+        #     #if not os.path.exists(self.all_images[imgidx]):
+        #     if os.path.getsize(self.all_images[imgidx])==0:
+        #         count+=1
+        #         present_images[imgidx]=0
+        # print('Count:',count)
         
-    def set_class(self,c):
-        self.current_class=c
-        selected_indices=self.all_labels[:,c]==1
-        self.selected_labels=self.all_labels[select_indices,:]
-        print(self.selected_labels)
-        print(self.selected_labels.shape)
-        self.selected_images=self.all_images[selected_indices]
-        self.selected_img_ids=self.all_img_ids[select_indices]
+        # self.all_labels=self.all_labels[present_images==1,:]
+        print(self.all_labels.shape)
+        self.all_img_ids=list(np.array(self.all_img_ids)[present_images==1])
+        self.all_images=list(np.array(self.all_images)[present_images==1])
+        print('Data size after:',len(self.all_img_ids),self.all_labels.shape)
 
-    def get_item(self,idx):
-        img_path=self.selected_images[idx]
-        image = Image.open(img_path).convert('RGB')
-        label = np.array(self.selected_labels[idx,:],dtype=np.float32)
-        return (self.transform(image),self.selected_img_ids[idx]),torch.from_numpy(label)        
+        assert(self.all_labels.shape[0]==len(self.all_img_ids))
 
-    # def get_item(self,idx):
-    #     img_path=self.all_images[idx]
-    #     image = Image.open(img_path).convert('RGB')
-    #     label = np.array(self.all_labels[idx,:],dtype=np.float32)
-    #     return (self.transform(image),self.all_img_ids[idx]),torch.from_numpy(label)
-    def select_label(self,labelidx,value):
-        #selected_indices=np.where(self.all_labels[:,labelidx]==value)[0]
-        #self.selected_labels=self.all_labels[selected_indices,:]
-        #self.selected_images=self.all_images[selected_indices,]
-        #self.selected_img_ids=self.all_img_ids[selected_indices,]
+        self.transform = transforms.Compose([
+        #transforms.RandomResizedCrop(self.input_size),
+        #transforms.RandomHorizontalFlip(),
+        transforms.Resize(self.input_size),
+        transforms.CenterCrop(self.input_size),
+        transforms.ToTensor(),
+        # transforms.Normalize([0,0,0],[1,1,1])
+        #transfors.Normalize(meanstds['means'], meanstds['stds'])
+        ])
 
-        self.selected_labels=self.all_labels
-        self.selected_images=self.all_images
-        self.selected_img_ids=self.all_img_ids
-        print('Selected label and idx:',self.selected_labels.shape)
-
-
+        
+        
     def __len__(self):
         return len(self.all_images)
         #return len(self.selected_images)
 
     def __getitem__(self, idx):
+
         img_path=self.all_images[idx]
         image = Image.open(img_path).convert('RGB')
         label = np.array(self.all_labels[idx,:],dtype=np.float32)

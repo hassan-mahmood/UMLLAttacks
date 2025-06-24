@@ -18,6 +18,7 @@ import torch
 import random
 import torch.nn.functional as F
 import numpy as np 
+from torch.cuda.amp import custom_bwd, custom_fwd
 
 torch.backends.cudnn.deterministic = True
 np.random.seed(999)
@@ -25,6 +26,34 @@ random.seed(999)
 torch.manual_seed(999)
 
 np.set_printoptions(formatter={'float': '{0:0.3f}'.format})
+
+
+class DifferentiableClamp(torch.autograd.Function):
+    """
+    In the forward pass this operation behaves like torch.clamp.
+    But in the backward pass its gradient is 1 everywhere, as if instead of clamp one had used the identity function.
+    """
+
+    @staticmethod
+    @custom_fwd
+    def forward(ctx, input, min, max):
+        return input.clamp(min=min, max=max)
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, grad_output):
+        return grad_output.clone(), None, None
+
+
+def dclamp(input, min, max):
+    """
+    Like torch.clamp, but with a constant 1-gradient.
+    :param input: The input that is to be clamped.
+    :param min: The minimum value of the output.
+    :param max: The maximum value of the output.
+    """
+    return DifferentiableClamp.apply(input, min, max)
+
 
 def mtile(a, dim, n_tile):
     init_dim = a.size(dim)
@@ -110,6 +139,7 @@ def restore_checkpoint(checkpoint_path,model,optimizer,logger):
   current_val_loss=checkpoint['current_val_loss']
   training_loss=checkpoint['training_loss']
   start_epoch=epoch+1
+  logger.write('*'*100)
   logger.write('Start Epoch:',start_epoch,', Min val loss:',min_val_loss,', Current val loss:',current_val_loss,', Training Loss:',training_loss)
   del checkpoint
   return start_epoch,min_val_loss
@@ -190,7 +220,7 @@ def get_label(xml_file):
     return output_label
 
 
-def create_folder(folderpath):
+def create_dir(folderpath):
     if(not os.path.exists(folderpath)):
         os.makedirs(folderpath)
 
